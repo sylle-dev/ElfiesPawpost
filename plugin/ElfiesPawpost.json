@@ -1,0 +1,14 @@
+{
+  "Author": "Sylle",
+  "Name": "Elfie's Pawpost",
+  "InternalName": "ElfiesPawpost",
+  "AssemblyVersion": "0.1.0.0",
+  "Description": "Your Eorzea mailbox: private messages, channels, emotes aimed at you and players targeting you, in a local web panel. /elfie opens the panel; /elfie config opens the settings.",
+  "Punchline": "A mailbox with cat ears for staying in Eorzea.",
+  "ApplicableVersion": "any",
+  "DalamudApiLevel": 15,
+  "Tags": ["chat", "tell", "social", "notifications", "emotes"],
+  "LoadRequiredState": 0,
+  "LoadSync": false,
+  "CanUnloadAsync": false
+}

@@ -1,0 +1,32 @@
+# Toolchain downloaded by tools/setup-linux.sh
+.tools/
+
+# Build output
+**/bin/
+**/obj/
+dist/
+setup-linux.log
+
+# web/ is scaffolding, not source. tools/prepare-web.mjs regenerates every Pawpost
+# file in it from frontend/, and `npm --prefix web ci` restores the rest from the
+# lockfile, so only the two dependency manifests are tracked.
+web/*
+!web/package.json
+!web/package-lock.json
+
+# Local credentials and environment files never belong in the repository
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Editor and OS noise
+*.user
+*.swp
+*~
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

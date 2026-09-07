@@ -30,3 +30,72 @@ web/*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Dependencies, caches, and local Python environments
+node_modules/
+.nuget/
+.npm/
+.cache/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Local agent sessions, settings, and machine-specific instructions
+# The reviewed root AGENTS.md is intentionally tracked.
+.codex/
+.agents/
+.claude/
+.cursor/
+CLAUDE.local.md
+AGENTS.local.md
+
+# Credentials, local configuration, and private working material
+.envrc
+.npmrc
+.netrc
+.git-credentials
+credentials.json
+secrets.json
+secrets/
+private/
+local/
+*.local
+*.local.*
+*.keystore
+*.jks
+id_rsa*
+id_ed25519*
+
+# Logs, diagnostic reports, recordings, and local databases
+*.log
+logs/
+TestResults/
+coverage/
+playwright-report/
+test-results/
+*.trace
+*.dmp
+*.dump
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+
+# Compiled artifacts and archives: publish only through reviewed releases
+*.dll
+*.exe
+*.pdb
+*.nupkg
+*.snupkg
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.bak
+*.orig
+*.rej

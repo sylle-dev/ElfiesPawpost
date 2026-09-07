@@ -36,7 +36,7 @@ public sealed class Plugin : IDalamudPlugin
     private bool settingsOpen;
     private volatile bool disposed;
     private string serverError = "";
-    private string character = "";
+    private readonly CharacterSession characterSession = new();
     private uint territory;
     private DateTimeOffset nextScan;
     private DateTimeOffset lastSend;
@@ -52,6 +52,7 @@ public sealed class Plugin : IDalamudPlugin
         Commands.AddHandler("/elfie", new CommandInfo(OnCommand)
         { HelpMessage = "Opens Pawpost. /elfie config · /elfie auto on|off · /elfie start|stop · /elfie clear" });
         Chat.ChatMessage += OnChat;
+        Client.Logout += OnLogout;
         Framework.Update += OnUpdate;
         PluginInterface.UiBuilder.Draw += Draw;
         PluginInterface.UiBuilder.OpenConfigUi += OpenSettings;
@@ -87,7 +88,8 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (disposed) return;
         var now = DateTimeOffset.UtcNow;
-        if (now >= nextScan || CurrentIdentity() != character)
+        var identity = CurrentIdentity();
+        if (now >= nextScan || (identity != "" && identity != characterSession.Identity))
         {
             nextScan = now.AddMilliseconds(500);
             try { Scan(now); }
@@ -139,20 +141,31 @@ public sealed class Plugin : IDalamudPlugin
         ui->ProcessChatBoxEntry(&text);
     }
 
+    private void OnLogout(int type, int code)
+    {
+        characterSession.Logout();
+        tracker.Clear();
+        state.Clear();
+        state.Update(new(false, "", "", "", false), []);
+        territory = 0;
+        zone = "";
+    }
+
     private void Scan(DateTimeOffset now)
     {
         var player = Objects.LocalPlayer;
         if (!Client.IsLoggedIn || player == null)
         {
-            if (character != "") { character = ""; tracker.Clear(); state.Clear(); }
+            // Loading can temporarily remove LocalPlayer without ending the login.
+            tracker.Clear();
             state.Update(new(false, "", "", "", false), []);
             return;
         }
         var world = player.HomeWorld.Value.Name.ToString();
         var identity = player.Name.TextValue + "@" + world;
-        if (identity != character)
+        if (characterSession.Observe(identity))
         {
-            state.Clear(); tracker.Clear(); character = identity;
+            state.Clear(); tracker.Clear();
             territory = 0;
             if (config.OpenOnLogin) OpenPanel();
         }
@@ -178,7 +191,7 @@ public sealed class Plugin : IDalamudPlugin
         if (disposed || !Client.IsLoggedIn || Objects.LocalPlayer is not { } player) return;
         try
         {
-            if (CurrentIdentity() != character) Scan(DateTimeOffset.UtcNow);
+            if (CurrentIdentity() != characterSession.Identity) Scan(DateTimeOffset.UtcNow);
             var type = message.LogKind;
             var channel = Channel(type);
             if (channel == null) return;
@@ -292,6 +305,7 @@ public sealed class Plugin : IDalamudPlugin
         disposed = true;
         Commands.RemoveHandler("/elfie");
         Chat.ChatMessage -= OnChat;
+        Client.Logout -= OnLogout;
         Framework.Update -= OnUpdate;
         PluginInterface.UiBuilder.Draw -= Draw;
         PluginInterface.UiBuilder.OpenConfigUi -= OpenSettings;

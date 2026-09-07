@@ -14,6 +14,19 @@ void Reject(SendRequest request, string name)
     catch (ArgumentException) { Check(true, name); }
 }
 
+var loginSession = new CharacterSession();
+Check(!loginSession.Observe(""), "No browser opening before a character is available");
+Check(loginSession.Observe("Luna Moonpetal@Moogle"), "First character starts one login");
+for (var loading = 0; loading < 5; loading++)
+{
+    Check(!loginSession.Observe(""), "Loading does not start a login");
+    Check(!loginSession.Observe("Luna Moonpetal@Moogle"), "Returning from an instance does not reopen the browser");
+}
+Check(loginSession.Observe("Nora Rose@Moogle"), "A different character starts a separate session");
+loginSession.Logout();
+Check(loginSession.Identity == "", "Real logout forgets the previous character");
+Check(loginSession.Observe("Nora Rose@Moogle"), "Logging back into the same character starts a new login");
+
 Check(ChatRules.BuildCommand(new("tell", "Luna Moonpetal@Moogle", "Hola ♡")) == "/tell Luna Moonpetal@Moogle Hola ♡", "Tell exact recipient and Unicode");
 Check(ChatRules.BuildCommand(new("party", null, "hello")) == "/p hello", "Channel command mapping");
 Check(ChatRules.BuildCommand(new("cwls8", null, "hello")) == "/cwl8 hello", "Cross-world channel mapping");

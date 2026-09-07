@@ -5,7 +5,8 @@ A local mailbox for staying in touch with Eorzea while you do other things. Clea
 ## What it includes
 
 - Web panel opened with **`/elfie`** from the game.
-- Optional opening when you log in with a character: **`/elfie auto on`**.
+- Optional opening once when you log in with a character: **`/elfie auto on`**. Loading screens and instance changes do not reopen the browser.
+- Dark mode by default. Use the sun/moon button in the header to switch themes; your choice is saved in this browser.
 - Private messages per person, with home world, and writing to Say, Party, FC, Alliance, Shout, Yell, LS and CWLS.
 - Activity by channel, mentions of your full name or nicknames, unread messages and game errors.
 - Emotes aimed at your character, using `TargetKind.LocalPlayer` from Dalamud API 15; ambient emotes kept separate.

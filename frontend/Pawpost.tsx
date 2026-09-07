@@ -17,6 +17,8 @@ const eventSymbol = (event: PawEvent) => event.kind === 'target' ? 'eye' : event
 
 function Icon({ name, size = 20 }: { name: string; size?: number }) {
   const paths: Record<string, ReactNode> = {
+    sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></>,
+    moon: <path d="M20.5 14A8.5 8.5 0 0 1 10 3.5 8.5 8.5 0 1 0 20.5 14Z" />,
     mail: <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="m4 7 8 6 8-6" /></>,
     eye: <><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></>,
     heart: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" />,
@@ -45,6 +47,15 @@ function getKey() {
 export default function Pawpost() {
   const demo = new URLSearchParams(location.search).get('demo') === '1';
   const [key] = useState(getKey);
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try { return localStorage.getItem('elfie.theme') === 'light' ? 'light' : 'dark'; }
+    catch { return 'dark'; }
+  });
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#19161f' : '#f5f1f7');
+    try { localStorage.setItem('elfie.theme', theme); } catch { /* Theme still works without storage. */ }
+  }, [theme]);
   const [events, setEvents] = useState<PawEvent[]>([]);
   const [watchers, setWatchers] = useState<Watcher[]>([]);
   const [player, setPlayer] = useState(emptyPlayer);
@@ -270,7 +281,7 @@ export default function Pawpost() {
     <header className="app-header">
       <a className="brand" href="#" onClick={e => { e.preventDefault(); setView('activity'); }}><span className="brand-mark"><Icon name="paw" size={26} /></span><span>Elfie’s <strong>Pawpost</strong><small>EORZEA MAILBOX</small></span></a>
       <div className={`connection ${connection === 'live' && player.online ? 'connected' : ''}`}><span className="status-dot" />{connectionText}</div>
-      <div className="header-actions"><button className="soft-button alert-button" onClick={enableAlerts}><Icon name="bell" />Turn on alerts</button><button className="icon-button" title="Alert settings" aria-label="Alert settings" onClick={() => setSettings(true)}><Icon name="settings" /></button></div>
+      <div className="header-actions"><button className="icon-button" title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><Icon name={theme === 'dark' ? 'sun' : 'moon'} /></button><button className="soft-button alert-button" onClick={enableAlerts}><Icon name="bell" />Turn on alerts</button><button className="icon-button" title="Alert settings" aria-label="Alert settings" onClick={() => setSettings(true)}><Icon name="settings" /></button></div>
     </header>
     <div className="workspace">
       <aside className={`sidebar ${menuOpen ? 'mobile-open' : ''}`} aria-label="Conversations and channels">

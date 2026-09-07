@@ -8,3 +8,51 @@
 @media(max-width:700px){.app-header{height:78px;padding:0 16px;gap:10px}.brand{font-size:18px;min-width:0;gap:10px}.brand small{font-size:9px;letter-spacing:1px}.brand-mark{width:37px;height:37px;border-radius:12px}.connection{padding:8px;font-size:12px}.header-actions{gap:0}.alert-button{display:none}.workspace{grid-template-columns:minmax(0,1fr)}.sidebar{display:none}.sidebar.mobile-open{display:flex;position:absolute;left:0;top:0;bottom:0;width:260px;z-index:3;box-shadow:20px 0 40px #57345929}.sidebar-mascot{display:none}.main-panel{height:100%}.conversation-heading{padding:24px 19px 20px;align-items:flex-start}.eyebrow{font-size:10px}h1{font-size:23px}.conversation-heading p{font-size:13px}.read-button{display:none}.mobile-menu{display:flex;font-size:12px;padding:6px 9px}.filter-bar{padding:10px 14px}.filter-bar button{padding:7px 10px}.timeline{padding:0 16px 20px}.activity-card{padding:15px 12px;gap:10px}.event-icon{width:30px;height:30px;border-radius:9px}.event-top{gap:7px}.event-top time{font-size:11px}.event-top strong{font-size:14px}.channel-chip{font-size:10px}.event-body p{font-size:15px}.event-bottom,.event-bottom button{font-size:12px}.composer{padding:15px}.activity-footer{padding:16px;font-size:13px}.connection-banner{margin:0 15px 15px}.empty-state{padding:20px 10px;min-height:260px}.empty-state h2{font-size:19px}.empty-state p{font-size:14px}.message{max-width:100%}.message>.avatar{display:none}.brand small{display:none}.header-actions .icon-button{width:32px}.heading-spark{display:none}}
 @media(prefers-reduced-motion:reduce){*,*:before{transition:none!important;scroll-behavior:auto!important}}
 .channel-notices{margin-top:24px;border-top:1px solid var(--line);padding-top:20px}.channel-notices h3{font-size:17px}.channel-notice-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}.channel-notice-row select{font-size:14px;min-width:140px;color:var(--ink)}
+/* Dark is the default. Light mode keeps the original pastel palette above. */
+:root{color-scheme:dark}
+:root[data-theme="light"]{color-scheme:light}
+:root:not([data-theme="light"]){--ink:#eee7f3;--muted:#b8aac3;--pink:#493042;--rose:#f0b5d1;--lilac:#352c46;--line:#3b3345;--mint:#253e35;--green:#a8d9bd;color:var(--ink);background:#19161f}
+:root:not([data-theme="light"]) {
+  button:hover{background:#393041}
+  button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline-color:#d4a5dc}
+  .app-header,.main-panel{background:#211c28}
+  .sidebar,.right-panel{background:#1d1924}
+  .activity-card,.watcher,.compose-box,dialog,dialog input:not([type=checkbox]),.skip-link{background:#2a2432;border-color:var(--line)}
+  .soft-button,select,.composer,.activity-footer,.filter-bar{background:#27212e;border-color:var(--line);color:var(--ink)}
+  .brand small,.sidebar-heading,.section-label,.eyebrow,.quiet-note,.other-channels,.sidebar-mascot>span,.session-note,.event-top time,.date-divider,.event-bottom,.watcher small,.right-description,.no-watchers,.little-note p,.right-footnote,.location-card>span:last-child,.composer-footer,.message-meta time,.modal-note,.empty-state p,.activity-footer,.composer>label{color:var(--muted)}
+  .nav-item,.filter-bar button,.read-button,.location-card strong{color:#d0bedc}
+  .nav-item svg,.circle-icon,.lilac,.kind-target .event-icon,.watcher-count{color:#d2b6ee}
+  .nav-item.selected{color:#e0c8fa}
+  .person-item.selected,.outgoing .bubble,.little-note{background:#3a2938}
+  .avatar,.event-icon{background:#463040;color:#f0bbd5}
+  .mint,.kind-mention .event-icon{background:var(--mint);color:var(--green)}
+  .lilac,.kind-target .event-icon,.circle-icon,.watcher-count{background:var(--lilac)}
+  .kind-emote .event-icon,.kind-ambient-emote .event-icon,.chip-emote{background:#463329;color:#f2c1a7}
+  .chip-fc,.connected{background:var(--mint);color:var(--green)}
+  .connected .status-dot{background:#8dceac;box-shadow:0 0 0 3px #365346}
+  .connection,.channel-chip,.bubble,.connection-banner,.demo-banner{background:#342b41;color:#d2bddf}
+  .connection.connected{background:var(--mint);color:var(--green)}
+  .chip-tell,.filter-bar button.active,.empty-envelope{background:var(--pink);color:var(--rose)}
+  .new-message,.event-bottom button,.watcher button,.little-note button,.composer>label strong,.footer-heart{color:#e3aed0}
+  .little-note,.little-note button,.connection-banner,.toggle-row,.compose-box,.filter-bar{border-color:var(--line)}
+  .date-divider:before,.date-divider:after{background:var(--line)}
+  .brand-mark:before,.brand-mark:after{background:var(--pink);border-color:#65415a}
+  .sidebar-mascot:before{background:#342736}
+  .heading-spark,.tiny-paw,.empty-decoration,.little-note>span{color:#c2a0ca}
+  .location-star{color:#a8d9bd}
+  .timeline{scrollbar-color:#62506e transparent}
+  .unread{border-left-color:#d49abb}
+  .compose-box:focus-within{border-color:#c392b3;box-shadow:0 0 0 3px #4b3449}
+  textarea::placeholder{color:#b39fb7}
+  .timeline-pill{background:#493042;border-color:#976986;color:#f4c3df;box-shadow:0 4px 15px #0004}
+  .feedback p{background:#253e35;color:#bce2c6}
+  .feedback .error-message,.kind-error{background:#442934;color:#ffc2ce;border-color:#a06378}
+  .over-limit{color:#ffadbf}
+  .toggle-row input{background:#65546f}
+  .toggle-row input:checked{background:#a06d92}
+  dialog::backdrop{background:#09060fb3}
+  .send-button,.primary-button{background:#85516f;color:#fff}
+  .send-button:hover,.primary-button:hover{background:#9a6385}
+}
+@media(max-width:700px){.brand{min-width:0}.app-header{gap:10px;padding-inline:12px}.header-actions{gap:2px}}
+@media(max-width:420px){.connection{font-size:11px;padding:6px 8px}.brand{font-size:16px;gap:8px}.brand-mark{width:30px;height:32px}.header-actions .icon-button{width:30px}}

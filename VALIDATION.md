@@ -62,3 +62,21 @@ The panel policy already stopped at `event.outgoing`, so the leak was upstream: 
 The decision moved into `ChatRules.IsOwnMessage`, free of Dalamud types and covered by tests: an outgoing tell (whose sender field holds the recipient), a line the game attributes to the local player, or a line whose sender is your own character, including when the World payload is missing. An emote whose target is the local player is never treated as own, so directed emotes still alert.
 
 Checked after the change: 12 Node policy tests, including one asserting nothing outgoing alerts on any channel or filter while it stays visible under Everything; 44 core/HTTP tests; `tsc --noEmit`; the Vite build; packaging. This fix lives in the DLL, so updating only the web folder does not apply it.
+
+
+## Instance changes and default dark theme (7 September 2026)
+
+- A temporarily unavailable local player no longer resets the character session.
+  Automatic opening happens once per character login; the explicit Dalamud Logout
+  event clears the session and its history. A different character still resets
+  history. Loading pauses player/target availability without reopening the panel.
+- Added regression coverage for repeated loading gaps, character changes, and a
+  genuine logout followed by login with the same character: 59 core/HTTP checks
+  and 12 notification-policy tests pass. Plugin compilation has no warnings or
+  errors; TypeScript and the static production build pass.
+- Dark mode is the default, including the initial HTML before React loads.
+  The header toggle persists the light/dark choice. Checked both themes, the
+  settings dialog, reload persistence, and desktop/mobile layouts at 1440, 390,
+  and 360 pixels using fictional demo data; no page errors or horizontal overflow.
+- The instance transition fix still needs confirmation inside FFXIV after reloading
+  the updated plugin. Automated session tests do not simulate the running game.

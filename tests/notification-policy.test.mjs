@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizePreferences, wantsNotice, activityEvents } from '../frontend/notification-policy.mjs';
+import { normalizePreferences, wantsNotice, wantsDesktopNotice, activityEvents } from '../frontend/notification-policy.mjs';
 const event = (channel, extra = {}) => ({ channel, kind: 'chat', outgoing: false, attention: false, ...extra });
 test('Limsa: 1000 ambient emotes and Say messages create no notices by default', () => {
   const prefs = normalizePreferences(null);
@@ -89,4 +89,33 @@ test('nothing the player sends ever alerts, on any channel or filter', () => {
   assert.equal(mine.filter(e => wantsNotice(e, prefs)).length, 1);
   assert.deepEqual(activityEvents(mine, 'attention', prefs).map(e => e.id), [1]);
   assert.deepEqual(activityEvents(mine, 'all', prefs).map(e => e.id), [4,3,2,1]);
+});
+
+test('glance desktop switch leaves history/unread and private notifications enabled', () => {
+  const prefs = normalizePreferences({desktop:true, targetDesktop:false});
+  const glance = event('target', {kind:'target', attention:true});
+  assert.equal(wantsNotice(glance, prefs), true);
+  assert.equal(wantsDesktopNotice(glance, prefs), false);
+  assert.equal(wantsDesktopNotice(event('tell'), prefs), true);
+  prefs.targetDesktop = true;
+  assert.equal(wantsDesktopNotice(glance, prefs), true);
+  prefs.desktop = false;
+  assert.equal(wantsDesktopNotice(glance, prefs), false);
+  prefs.desktop = true; prefs.target = false;
+  assert.equal(wantsDesktopNotice(glance, prefs), false);
+});
+test('old desktop settings retain their existing target behavior', () => {
+  const prefs = normalizePreferences({desktop:true});
+  assert.equal(prefs.targetDesktop, true);
+  assert.equal(wantsDesktopNotice(event('target', {kind:'target'}), prefs), true);
+  assert.equal(normalizePreferences({targetDesktop:'false'}).targetDesktop, true);
+});
+
+test('notification volume defaults to half and validates stored values', () => {
+  assert.equal(normalizePreferences(null).volume, 50);
+  assert.equal(normalizePreferences({sound:true}).volume, 50);
+  for (const volume of [0, 25, 50, 100]) assert.equal(normalizePreferences({volume}).volume, volume);
+  assert.equal(normalizePreferences({volume:-10}).volume, 0);
+  assert.equal(normalizePreferences({volume:200}).volume, 100);
+  for (const volume of ['75', null, NaN, Infinity]) assert.equal(normalizePreferences({volume}).volume, 50);
 });

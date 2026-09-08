@@ -70,6 +70,32 @@ Check(!tracker.Update(watchers, now.AddSeconds(3), TimeSpan.FromSeconds(30)).Any
 tracker.Update([], now.AddSeconds(31), TimeSpan.FromSeconds(30));
 Check(tracker.Update(watchers, now.AddSeconds(32), TimeSpan.FromSeconds(30)).Count() == 1, "New target after cooldown alerts");
 
+var glanceState = new PawState();
+var online = new PlayerStatus(true, "Elfie Pawpost", "Moogle", "Eorzea", true);
+glanceState.Update(online, watchers, now);
+glanceState.Update(online, watchers, now.AddMinutes(2));
+glanceState.Update(online, [], now.AddMinutes(3));
+Check(glanceState.Read().Watchers.Length == 0 && glanceState.Read().RecentWatchers.Length == 1,
+    "A player who stops targeting remains in recent glances");
+Check(glanceState.Read().RecentWatchers[0].LastSeen == now.AddMinutes(2),
+    "Recent glance time reflects last observation, not first notification");
+glanceState.Update(online, [new("Luna Moonpetal", "Ragnarok", 4)], now.AddMinutes(4));
+Check(glanceState.Read().RecentWatchers.Length == 2 && glanceState.Read().RecentWatchers[0].World == "Ragnarok",
+    "Recent glances distinguish home worlds and sort latest first");
+glanceState.Update(online, watchers, now.AddMinutes(5));
+Check(glanceState.Read().RecentWatchers.Length == 2 && glanceState.Read().RecentWatchers[0].World == "Moogle",
+    "Retargeting updates the existing row without duplicates");
+glanceState.Update(new(false, "", "", "", false), [], now.AddMinutes(6));
+Check(glanceState.Read().RecentWatchers.Length == 2, "Loading preserves recent glances");
+glanceState.Update(online, [], now.AddMinutes(34));
+Check(glanceState.Read().RecentWatchers.Length == 1, "Recent glances expire after 30 minutes");
+glanceState.Clear();
+Check(glanceState.Read().RecentWatchers.Length == 0, "Session reset erases recent player history");
+for (var i = 0; i < 120; i++)
+    glanceState.Update(online, [new("Demo Visitor " + i, "Moogle", 2)], now.AddSeconds(i));
+Check(glanceState.Read().RecentWatchers.Length == PawState.RecentWatcherCapacity,
+    "Recent player history has a fixed memory bound");
+
 if (args.Contains("--unit-only")) { Console.WriteLine($"{passed} tests passed."); return; }
 
 var temp = Path.Combine(Path.GetTempPath(), "elfie-test-" + Guid.NewGuid().ToString("N"));

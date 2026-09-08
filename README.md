@@ -7,12 +7,13 @@ A local mailbox for staying in touch with Eorzea while you do other things. Clea
 - Web panel opened with **`/elfie`** from the game.
 - Optional opening once when you log in with a character: **`/elfie auto on`**. Loading screens and instance changes do not reopen the browser.
 - Dark mode by default. Use the sun/moon button in the header to switch themes; your choice is saved in this browser.
-- Private messages per person, with home world, and writing to Say, Party, FC, Alliance, Shout, Yell, LS and CWLS.
+- Private messages per person, with home world, and writing to Say, Party, FC, Alliance, Shout, Yell, LS and CWLS. Close a private conversation with its × button in the sidebar or conversation header. Its messages and draft remain available during the session; a new incoming private message reopens it.
 - Activity by channel, mentions of your full name or nicknames, unread messages and game errors.
 - Emotes aimed at your character, using `TargetKind.LocalPlayer` from Dalamud API 15; ambient emotes kept separate.
-- List of nearby players who have you as their **normal target**, with distance and a button to start a private message. It does not detect another person's Focus Target. It pauses in PvP.
+- **Eyes on you** shows nearby players who have you as their **normal target**, plus people who targeted you during the last 30 minutes with a relative last-seen time. Recent entries are deduplicated by name and home world, limited to 100, and kept only in memory until logout or a session reset. It does not detect another person's Focus Target. Detection pauses in PvP.
+- **Desktop alerts for glances** can be toggled directly in Eyes on you or in Alert settings without hiding recent history or muting private-message desktop alerts. Desktop notifications, target alerts, and browser permission must also be enabled; the focus setting still applies.
 - Alerts by channel: **Muted**, **Mentions only** or **Everything**, under Settings → Alerts by channel. System, Say, Shout, Yell and nearby emotes are muted by default. Activity shows the newest first and updates live; For you respects muted channels. Muting avoids sound, notifications and unread counters while keeping the history. Emotes aimed at you, private messages and glances have their own switches.
-- Sound and browser notifications, configurable. Press **Turn on alerts** once; keep the tab open.
+- Sound and browser notifications, configurable. Notification volume defaults to 50%, ranges from 0% (muted) to 100%, and is saved in this browser. Press **Turn on alerts** once; keep the tab open.
 - Automatic reconnection, without duplicating history or re-alerting the whole backlog when the tab opens.
 - The panel fills the window and never scrolls the page: each column scrolls on its own, the conversation stays pinned to its newest message, and Activity stays pinned to the top. When new items arrive while you are reading further away, a pill offers to jump back to the live edge instead of moving you.
 

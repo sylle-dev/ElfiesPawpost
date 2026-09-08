@@ -7,8 +7,9 @@ public sealed record PawEvent(long Id, DateTimeOffset At, string Kind, string Ch
     string Sender, string World, string Text, bool Outgoing = false, bool Attention = false,
     string? Conversation = null);
 public sealed record Watcher(string Name, string World, float Distance);
+public sealed record RecentWatcher(string Name, string World, DateTimeOffset LastSeen);
 public sealed record PlayerStatus(bool Online, string Name, string World, string Zone, bool TargetTracking);
-public sealed record Snapshot(string Session, long Cursor, PawEvent[] Events, Watcher[] Watchers, PlayerStatus Player);
+public sealed record Snapshot(string Session, long Cursor, PawEvent[] Events, Watcher[] Watchers, PlayerStatus Player, RecentWatcher[] RecentWatchers);
 public sealed record SendRequest(string Channel, string? Recipient, string Text);
 public sealed record SendResult(bool Ok, string Message);
 
@@ -74,6 +75,9 @@ public sealed class PawState
     private long cursor;
     private string session = Guid.NewGuid().ToString("N");
     private Watcher[] watchers = [];
+    private readonly Dictionary<string, RecentWatcher> recentWatchers = new();
+    public const int RecentWatcherCapacity = 100;
+    public static readonly TimeSpan RecentWatcherRetention = TimeSpan.FromMinutes(30);
     private PlayerStatus player = new(false, "", "", "", false);
     public const int Capacity = 1500;
 
@@ -87,17 +91,28 @@ public sealed class PawState
             while (events.Count > Capacity) events.Dequeue();
         }
     }
-    public void Update(PlayerStatus status, Watcher[] current)
+    public void Update(PlayerStatus status, Watcher[] current, DateTimeOffset? observedAt = null)
     {
-        lock (gate) { player = status; watchers = current.ToArray(); }
+        lock (gate)
+        {
+            var now = observedAt ?? DateTimeOffset.UtcNow;
+            player = status;
+            watchers = current.ToArray();
+            foreach (var watcher in current)
+                recentWatchers[watcher.Name + "@" + watcher.World] = new(watcher.Name, watcher.World, now);
+            foreach (var key in recentWatchers.Where(p => now - p.Value.LastSeen >= RecentWatcherRetention)
+                .Select(p => p.Key).ToArray()) recentWatchers.Remove(key);
+            foreach (var key in recentWatchers.OrderByDescending(p => p.Value.LastSeen)
+                .Skip(RecentWatcherCapacity).Select(p => p.Key).ToArray()) recentWatchers.Remove(key);
+        }
     }
     public Snapshot Read(long after = 0)
     {
-        lock (gate) return new(session, cursor, events.Where(e => e.Id > after).ToArray(), watchers.ToArray(), player);
+        lock (gate) return new(session, cursor, events.Where(e => e.Id > after).ToArray(), watchers.ToArray(), player, recentWatchers.Values.OrderByDescending(w => w.LastSeen).ToArray());
     }
     public void Clear()
     {
-        lock (gate) { events.Clear(); watchers = []; cursor = 0; session = Guid.NewGuid().ToString("N"); }
+        lock (gate) { events.Clear(); watchers = []; recentWatchers.Clear(); cursor = 0; session = Guid.NewGuid().ToString("N"); }
     }
 }
 

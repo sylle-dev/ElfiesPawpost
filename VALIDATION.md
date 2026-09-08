@@ -80,3 +80,48 @@ Checked after the change: 12 Node policy tests, including one asserting nothing 
   and 360 pixels using fictional demo data; no page errors or horizontal overflow.
 - The instance transition fix still needs confirmation inside FFXIV after reloading
   the updated plugin. Automated session tests do not simulate the running game.
+
+
+## Recent glances and desktop delivery (7 September 2026)
+
+- Snapshots include recent target observations independently of the notification
+  cooldown and chat-event retention. Last-seen timestamps update while targeting
+  continues. Entries are deduplicated by name/home world, ordered most recent
+  first, limited to 100, and expire after 30 minutes. Session clearing erases them.
+  Player history remains in plugin memory only.
+- Eyes on you separates current targets from recent visitors and updates relative
+  times while the page stays open. Either group can open a private conversation.
+- A persistent desktop-only glance switch leaves history, sound/unread policy,
+  and private-message desktop delivery unchanged. Existing preferences migrate
+  without silently enabling global desktop notifications.
+- 67 core/HTTP checks and 14 notification-policy tests pass; TypeScript and plugin
+  compilation pass without errors or warnings. Browser checks using fictional
+  data cover recent visitors, advancing relative time, toggle persistence,
+  conversation opening, and both themes.
+- Real target detection and desktop delivery still need in-game confirmation
+  after reloading the plugin and granting browser notification permission.
+
+
+## Closing conversations and compact recent visitors
+
+- Private conversations have separate, keyboard-accessible close buttons in the
+  sidebar and conversation header. Closing removes the row and its unread badge;
+  closing the active conversation returns to Activity. History and drafts remain
+  in memory, and opening the contact manually restores the conversation.
+- New incoming private messages reopen a closed row. Replayed history and outgoing
+  messages do not reopen it. Closed-row state resets with the character session.
+- Recent visitors use compact clickable rows with avatar, name, world, and elapsed
+  time. Long names truncate visually with a full-name tooltip.
+- TypeScript and production build pass. Browser checks with fictional data cover
+  closing active/inactive conversations, the mobile header close button, preserved
+  drafts, manual reopening, and incoming versus outgoing stream updates.
+
+
+## Notification volume
+
+- Volume defaults to 50%, persists in browser preferences, and controls the chime
+  gain. Zero volume skips audio playback. Stored values are validated and clamped.
+- All 15 notification-policy tests pass, including volume defaults, existing-user
+  migration, limits, and invalid values. TypeScript and the production build pass.
+- Browser checks confirmed the default, slider interaction, saved value after
+  reload, and the muted label. The settings layout was visually inspected.

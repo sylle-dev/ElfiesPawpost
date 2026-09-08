@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import './pawpost.css';
-import { normalizePreferences, wantsNotice, activityEvents, channelDefaults, type Preferences, type ChannelMode } from './notification-policy.mjs';
+import { normalizePreferences, wantsNotice, wantsDesktopNotice, activityEvents, channelDefaults, type Preferences, type ChannelMode } from './notification-policy.mjs';
 
 type PawEvent = { id: number; at: string; kind: string; channel: string; sender: string; world: string; text: string; outgoing: boolean; attention: boolean; conversation: string | null };
 type Watcher = { name: string; world: string; distance: number };
-type Snapshot = { session: string; cursor: number; events: PawEvent[]; watchers: Watcher[]; player: { online: boolean; name: string; world: string; zone: string; targetTracking: boolean } };
-type TogglePreference = Exclude<keyof Preferences, 'channels'>;
+type RecentWatcher = { name: string; world: string; lastSeen: string };
+type Snapshot = { session: string; cursor: number; events: PawEvent[]; watchers: Watcher[]; recentWatchers?: RecentWatcher[]; player: { online: boolean; name: string; world: string; zone: string; targetTracking: boolean } };
+type TogglePreference = Exclude<keyof Preferences, 'channels' | 'volume'>;
 const defaults = normalizePreferences(null);
 const channelNames: Record<string, string> = { tell: 'Private', say: 'Say', party: 'Party', fc: 'Free Company', alliance: 'Alliance', shout: 'Shout', yell: 'Yell', novice: 'Novice Network', emote: 'Emote', target: 'Target', system: 'System', ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`ls${i + 1}`, `Linkshell ${i + 1}`])), ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`cwls${i + 1}`, `CW Linkshell ${i + 1}`])) };
 const sendable = ['say', 'party', 'fc', 'alliance', 'shout', 'yell', ...Array.from({ length: 8 }, (_, i) => `ls${i + 1}`), ...Array.from({ length: 8 }, (_, i) => `cwls${i + 1}`)];
@@ -58,6 +59,18 @@ export default function Pawpost() {
   }, [theme]);
   const [events, setEvents] = useState<PawEvent[]>([]);
   const [watchers, setWatchers] = useState<Watcher[]>([]);
+  const [recentWatchers, setRecentWatchers] = useState<RecentWatcher[]>([]);
+  const [clock, setClock] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 15000);
+    return () => clearInterval(timer);
+  }, []);
+  const pastWatchers = recentWatchers.filter(w => clock - Date.parse(w.lastSeen) < 30 * 60000
+    && !watchers.some(live => live.name === w.name && live.world === w.world));
+  const lastSeenLabel = (at: string) => {
+    const minutes = Math.max(0, Math.floor((clock - Date.parse(at)) / 60000));
+    return minutes < 1 ? 'Just now' : `${minutes} min ago`;
+  };
   const [player, setPlayer] = useState(emptyPlayer);
   const [connection, setConnection] = useState<'connecting' | 'live' | 'offline' | 'locked'>(key ? 'connecting' : 'locked');
   const [view, setView] = useState('activity');
@@ -67,6 +80,7 @@ export default function Pawpost() {
   const [newChat, setNewChat] = useState(false);
   const [recipient, setRecipient] = useState('');
   const [contacts, setContacts] = useState<string[]>([]);
+  const [closedConversations, setClosedConversations] = useState<Set<string>>(new Set());
   const [unread, setUnread] = useState<Set<number>>(new Set());
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
@@ -98,13 +112,13 @@ export default function Pawpost() {
     : selected.startsWith('channel:') ? event.channel === selected.slice(8) : wantsNotice(event, preferencesRef.current);
 
   function chime() {
-    if (!audio.current || audio.current.state !== 'running') return;
+    if (!audio.current || audio.current.state !== 'running' || preferencesRef.current.volume === 0) return;
     const ctx = audio.current;
     [660, 880].forEach((frequency, index) => {
       const oscillator = ctx.createOscillator(); const gain = ctx.createGain();
       oscillator.connect(gain); gain.connect(ctx.destination); oscillator.frequency.value = frequency;
       const start = ctx.currentTime + index * 0.13;
-      gain.gain.setValueAtTime(0, start); gain.gain.linearRampToValueAtTime(0.12, start + 0.015); gain.gain.exponentialRampToValueAtTime(0.001, start + 0.24);
+      gain.gain.setValueAtTime(0, start); gain.gain.linearRampToValueAtTime(0.24 * preferencesRef.current.volume / 100, start + 0.015); gain.gain.exponentialRampToValueAtTime(0.001, start + 0.24);
       oscillator.start(start); oscillator.stop(start + 0.25);
     });
   }
@@ -115,21 +129,26 @@ export default function Pawpost() {
     if (!eligible.length || Date.now() - lastAlert.current < 1800) return;
     lastAlert.current = Date.now();
     if (prefs.sound) chime();
-    if (prefs.desktop && 'Notification' in window && Notification.permission === 'granted') {
-      const event = eligible[eligible.length - 1];
+    const desktopEvents = eligible.filter(event => wantsDesktopNotice(event, prefs));
+    if (desktopEvents.length && 'Notification' in window && Notification.permission === 'granted') {
+      const event = desktopEvents[desktopEvents.length - 1];
       const notification = new Notification(`${event.sender} · ${channelNames[event.channel] || event.channel}`, { body: event.text, icon: '/elfie-courier.png', tag: 'elfie-pawpost' });
-      notification.onclick = () => { window.focus(); setView(event.conversation ? `dm:${event.conversation}` : 'activity'); notification.close(); };
+      notification.onclick = () => { window.focus(); if (event.conversation) openConversation(event.conversation); else setView('activity'); notification.close(); };
     }
   }
   function accept(snapshot: Snapshot) {
     const reset = session.current !== snapshot.session;
     const fresh = reset ? snapshot.events : snapshot.events.filter(e => e.id > cursor.current);
     if (reset) {
-      setEvents(fresh); setUnread(new Set());
+      setEvents(fresh); setUnread(new Set()); setClosedConversations(new Set());
       if (session.current) { setContacts([]); setDrafts({}); setView('activity'); }
       initialized.current = false;
-    } else if (fresh.length) setEvents(old => [...old, ...fresh].slice(-1500));
-    setWatchers(snapshot.watchers); setPlayer(snapshot.player); setConnection('live');
+    } else if (fresh.length) {
+      setEvents(old => [...old, ...fresh].slice(-1500));
+      const incoming = new Set(fresh.filter(e => e.channel === 'tell' && !e.outgoing && e.conversation).map(e => e.conversation!));
+      if (incoming.size) setClosedConversations(old => new Set([...old].filter(identity => !incoming.has(identity))));
+    }
+    setWatchers(snapshot.watchers); setRecentWatchers(snapshot.recentWatchers ?? []); setClock(Date.now()); setPlayer(snapshot.player); setConnection('live');
     if (initialized.current) {
       alertFor(fresh);
       setUnread(old => new Set([...old, ...fresh.filter(e => wantsNotice(e, preferencesRef.current) && (document.hidden || !document.hasFocus() || !matches(e, viewRef.current))).map(e => e.id)].filter(id => id > snapshot.cursor - 1500)));
@@ -145,7 +164,7 @@ export default function Pawpost() {
         { id: 3, at: new Date(Date.now() - 50000).toISOString(), kind: 'target', channel: 'target', sender: 'Miu Stardust', world: 'Ragnarok', text: 'Targeted you.', outgoing: false, attention: true, conversation: null },
         { id: 4, at: new Date(Date.now() - 20000).toISOString(), kind: 'mention', channel: 'fc', sender: 'Nora Rose', world: 'Moogle', text: 'Elfie, we saved a spot for you in the party \u2728', outgoing: false, attention: true, conversation: null },
       ];
-      accept({ session: 'demo', cursor: 4, events: samples, watchers: [{ name: 'Miu Stardust', world: 'Ragnarok', distance: 3.2 }], player: { online: true, name: 'Elfie Pawpost', world: 'Moogle', zone: 'New Gridania', targetTracking: true } });
+      accept({ session: 'demo', cursor: 4, events: samples, recentWatchers: [{ name: 'Nora Rose', world: 'Moogle', lastSeen: new Date(Date.now() - 3 * 60000).toISOString() }, { name: 'Luna Moonpetal', world: 'Moogle', lastSeen: new Date(Date.now() - 12 * 60000).toISOString() }], watchers: [{ name: 'Miu Stardust', world: 'Ragnarok', distance: 3.2 }], player: { online: true, name: 'Elfie Pawpost', world: 'Moogle', zone: 'New Gridania', targetTracking: true } });
       return;
     }
     if (!key) return;
@@ -194,7 +213,8 @@ export default function Pawpost() {
   useEffect(() => { pinned.current = true; setNewAway(false); setError(''); setNotice(''); setMenuOpen(false); }, [view]);
 
   const conversations = useMemo(() => [...new Set([...contacts, ...events.filter(e => e.channel === 'tell' && e.conversation).map(e => e.conversation!)])]
-    .sort((a, b) => (events.findLast(e => e.conversation === b)?.id || 0) - (events.findLast(e => e.conversation === a)?.id || 0)), [events, contacts]);
+    .filter(identity => !closedConversations.has(identity))
+    .sort((a, b) => (events.findLast(e => e.conversation === b)?.id || 0) - (events.findLast(e => e.conversation === a)?.id || 0)), [events, contacts, closedConversations]);
   const unreadFor = (selected: string) => events.filter(e => unread.has(e.id) && matches(e, selected)).length;
   const selectedRecipient = view.startsWith('dm:') ? view.slice(3) : '';
   const selectedChannel = selectedRecipient ? 'tell' : view.startsWith('channel:') ? view.slice(8) : '';
@@ -245,7 +265,18 @@ export default function Pawpost() {
     } catch (exception) { setError(exception instanceof Error && exception.name !== 'TimeoutError' ? exception.message : 'The send could not be confirmed. Check the conversation before resending.'); }
     finally { busy.current = false; setSending(false); }
   }
-  function openConversation(identity: string) { setContacts(old => [...new Set([...old, identity])]); setView('dm:' + identity); }
+  function openConversation(identity: string) {
+    setClosedConversations(old => { const next = new Set(old); next.delete(identity); return next; });
+    setContacts(old => [...new Set([...old, identity])]);
+    setView('dm:' + identity);
+  }
+  function closeConversation(identity: string) {
+    setClosedConversations(old => new Set([...old, identity]));
+    setContacts(old => old.filter(contact => contact !== identity));
+    const messageIds = new Set(events.filter(event => event.conversation === identity).map(event => event.id));
+    setUnread(old => new Set([...old].filter(id => !messageIds.has(id))));
+    setView(old => old === 'dm:' + identity ? 'activity' : old);
+  }
 
   useEffect(() => {
     // Optional browser capability: stage a visible draft, never send a game message.
@@ -289,7 +320,7 @@ export default function Pawpost() {
         <button className={`nav-item ${view === 'activity' ? 'selected' : ''}`} onClick={() => setView('activity')}><Icon name="spark" /><span>Activity</span>{unreadFor('activity') > 0 && <b className="counter">{unreadFor('activity')}</b>}</button>
         <div className="section-label">PRIVATE<button className="icon-button small" onClick={() => { setRecipient(''); setNewChat(true); }} aria-label="New private message" title="New private message"><Icon name="plus" size={18} /></button></div>
         <div className="conversation-list">
-          {conversations.map(identity => <button key={identity} className={`person-item ${view === 'dm:' + identity ? 'selected' : ''}`} onClick={() => setView('dm:' + identity)}><span className="avatar">{initials(identity.split('@')[0])}</span><span className="person-name">{identity.split('@')[0]}<small>{identity.split('@')[1]}</small></span>{unreadFor('dm:' + identity) > 0 && <b className="counter">{unreadFor('dm:' + identity)}</b>}</button>)}
+          {conversations.map(identity => <div className="person-row" key={identity}><button className={`person-item ${view === 'dm:' + identity ? 'selected' : ''}`} onClick={() => openConversation(identity)}><span className="avatar">{initials(identity.split('@')[0])}</span><span className="person-name">{identity.split('@')[0]}<small>{identity.split('@')[1]}</small></span>{unreadFor('dm:' + identity) > 0 && <b className="counter">{unreadFor('dm:' + identity)}</b>}</button><button className="icon-button close-conversation" aria-label={`Close conversation with ${identity}`} title="Close conversation" onClick={() => closeConversation(identity)}><Icon name="close" size={15} /></button></div>)}
           {!conversations.length && <p className="quiet-note">Your conversations will show up here.</p>}
         </div>
         <button className="new-message" onClick={() => { setRecipient(''); setNewChat(true); }}><Icon name="plus" size={17} />New private message</button>
@@ -300,7 +331,7 @@ export default function Pawpost() {
         <div className="player-card"><span className="avatar mint"><Icon name="paw" /></span><div><strong>{player.name || 'Your character'}</strong><small>{player.world || 'Open the game to connect'}</small></div></div>
       </aside>
       <main id="conversation" className="main-panel">
-        <div className="conversation-heading"><div><div className="eyebrow">{view === 'activity' ? 'EVERYTHING MEANT FOR YOU' : selectedRecipient ? `PRIVATE · ${selectedRecipient.split('@')[1]}` : 'EORZEA CHAT'}</div><h1>{title}<span className="heading-spark" aria-hidden="true">✧</span></h1><p>{view === 'activity' ? 'Messages, waves and glances. Newest first.' : selectedRecipient ? 'This conversation sends messages with /tell.' : `Messages from ${channelNames[selectedChannel] || selectedChannel}.`}</p></div><button className="mobile-menu soft-button" onClick={() => setMenuOpen(!menuOpen)}>Mailbox</button>{view === 'activity' && <button className="read-button" onClick={() => setUnread(new Set())} title="Mark everything as read"><Icon name="check" size={17} /><span>Mark all read</span></button>}</div>
+        <div className="conversation-heading"><div><div className="eyebrow">{view === 'activity' ? 'EVERYTHING MEANT FOR YOU' : selectedRecipient ? `PRIVATE · ${selectedRecipient.split('@')[1]}` : 'EORZEA CHAT'}</div><h1>{title}<span className="heading-spark" aria-hidden="true">✧</span></h1><p>{view === 'activity' ? 'Messages, waves and glances. Newest first.' : selectedRecipient ? 'This conversation sends messages with /tell.' : `Messages from ${channelNames[selectedChannel] || selectedChannel}.`}</p></div>{selectedRecipient && <button className="icon-button" aria-label="Close current conversation" title="Close conversation" onClick={() => closeConversation(selectedRecipient)}><Icon name="close" /></button>}<button className="mobile-menu soft-button" onClick={() => setMenuOpen(!menuOpen)}>Mailbox</button>{view === 'activity' && <button className="read-button" onClick={() => setUnread(new Set())} title="Mark everything as read"><Icon name="check" size={17} /><span>Mark all read</span></button>}</div>
         {(connection !== 'live' || !player.online) && <div className="connection-banner" role="status"><Icon name="mail" /><span>{connection === 'locked' ? <>Open this mailbox with <strong>/elfie</strong> in game to connect.</> : connection === 'live' ? 'The panel is ready. Log in with your character to receive and send messages.' : 'Waiting for the plugin. Your history stays here; sending returns once it reconnects.'}</span></div>}
         {view === 'activity' && <div className="filter-bar" aria-label="Filter activity">{[['attention', 'For you'], ['all', 'Everything'], ['emote', 'Emotes'], ['target', 'Glances']].map(([id, label]) => <button key={id} aria-pressed={filter === id} className={filter === id ? 'active' : ''} onClick={() => setFilter(id)}>{label}</button>)}<span className="session-note">Newest first · Live</span></div>}
         <div className="timeline-wrap"><div className="timeline" ref={timeline} onScroll={() => { const el = timeline.current!; pinned.current = viewRef.current === 'activity' ? el.scrollTop < 70 : el.scrollHeight - el.scrollTop - el.clientHeight < 70; if (pinned.current) setNewAway(false); }}>
@@ -316,6 +347,13 @@ export default function Pawpost() {
         <div className="watching-heading"><span className="circle-icon"><Icon name="eye" /></span><h2>Eyes on you</h2><span className="watcher-count">{watchers.length}</span></div>
         <p className="right-description">Targeting you right now</p>
         {watchers.length ? watchers.map(watcher => <div className="watcher" key={watcher.name + watcher.world}><span className="avatar lilac">{initials(watcher.name)}</span><div><strong>{watcher.name}</strong><small>{watcher.world} · {watcher.distance} yalms</small><button onClick={() => openConversation(`${watcher.name}@${watcher.world}`)}>Send a private message <span aria-hidden="true">↗</span></button></div></div>) : <div className="no-watchers"><Icon name="eye" size={29} /><p>{connection !== 'live' ? 'Waiting for the connection' : !player.targetTracking && player.online ? 'Detection paused' : 'All quiet here'}</p></div>}
+        <section className="recent-watchers" aria-label="Recent glances">
+          <h3>Looked at you recently <span>{pastWatchers.length}</span></h3>
+          <p className="right-description">Last 30 minutes · most recent first</p>
+          {pastWatchers.length ? pastWatchers.map(watcher => <button className="person-item recent-person" key={`${watcher.name}@${watcher.world}`} title={`Open conversation with ${watcher.name}`} onClick={() => openConversation(`${watcher.name}@${watcher.world}`)}><span className="avatar lilac">{initials(watcher.name)}</span><span className="person-name">{watcher.name}<small>{watcher.world}</small></span><time dateTime={watcher.lastSeen} title={new Date(watcher.lastSeen).toLocaleTimeString('en-GB')}>{lastSeenLabel(watcher.lastSeen)}</time></button>) : <p className="recent-empty">No recent glances yet.</p>}
+        </section>
+        <label className="toggle-row glance-desktop"><span>Desktop alerts for glances</span><input type="checkbox" checked={preferences.targetDesktop} onChange={e => setPreferences(old => ({ ...old, targetDesktop: e.target.checked }))} /></label>
+        <p className="glance-notice">{!preferences.targetDesktop ? 'Desktop alerts for glances are off. History stays visible.' : !preferences.desktop || !preferences.target ? 'Enable desktop notifications and target alerts in settings to receive these alerts.' : 'Desktop alerts follow your browser permission and focus settings.'} <button onClick={() => setSettings(true)}>Alert settings</button></p>
         <div className="right-divider" />
         <div className="little-note"><span aria-hidden="true">✧</span><h3>Never miss a hello</h3><p>Turn alerts on and carry on. Elfie watches the mailbox.</p><button onClick={() => setSettings(true)}>Adjust my alerts <Icon name="settings" size={16} /></button></div>
         <div className="location-card"><span className="location-star" aria-hidden="true">✦</span><span>WHERE YOU ARE<strong>{player.zone || 'Eorzea awaits'}</strong></span></div>
@@ -323,6 +361,6 @@ export default function Pawpost() {
       </aside>
     </div>
     <dialog ref={newChatDialog} onCancel={() => setNewChat(false)} onClick={e => { if (e.target === newChatDialog.current) setNewChat(false); }}><form onSubmit={e => { e.preventDefault(); const identity = recipient.trim(); if (/^[A-Za-z'-]{2,15} [A-Za-z'-]{2,15}@[A-Za-z][A-Za-z0-9-]{1,31}$/.test(identity)) { openConversation(identity); setNewChat(false); } }}><div className="modal-heading"><span className="circle-icon pink"><Icon name="mail" /></span><h2>A new private message</h2><button className="icon-button" type="button" aria-label="Close" onClick={() => setNewChat(false)}><Icon name="close" /></button></div><label className="field-label" htmlFor="recipient">Full name and world</label><input id="recipient" autoFocus value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="Luna Moonpetal@Moogle" required pattern="[A-Za-z'\-]{2,15} [A-Za-z'\-]{2,15}@[A-Za-z][A-Za-z0-9\-]{1,31}" /><p className="modal-note">Include the home world, even when you share a server.</p><button className="primary-button" type="submit">Open conversation <Icon name="mail" size={18} /></button></form></dialog>
-    <dialog ref={settingsDialog} onCancel={() => setSettings(false)} onClick={e => { if (e.target === settingsDialog.current) setSettings(false); }}><div className="modal-heading"><span className="circle-icon pink"><Icon name="bell" /></span><h2>Alerts your way</h2><button className="icon-button" aria-label="Close settings" onClick={() => setSettings(false)}><Icon name="close" /></button></div><button className="primary-button enable-alerts" onClick={enableAlerts}>Turn on sound and permissions <Icon name="bell" size={18} /></button><p className="modal-note">Keep this tab open. If the browser suspends it, alerts can arrive late.</p>{([['sound', 'Gentle sound'], ['desktop', 'Desktop notifications'], ['tell', 'When someone writes privately'], ['emote', 'Emotes aimed at me'], ['target', 'When someone targets me'], ['mention', 'Mentions of my name'], ['whileVisible', 'Alert me even while I am watching the panel']] as [TogglePreference, string][]).map(([id, label]) => <label className="toggle-row" key={id}><span>{label}</span><input type="checkbox" checked={preferences[id]} onChange={e => setPreferences(old => ({ ...old, [id]: e.target.checked }))} /></label>)}<section className="channel-notices"><h3>Alerts by channel</h3><p className="modal-note">Muted: still shown in the history, but it adds no unread count and triggers no sound or notification. Emotes aimed at you are set above.</p>{Object.keys(channelDefaults).map(channel => <label className="channel-notice-row" key={channel}><span>{channel === 'emote' ? 'Emotes near me' : channelNames[channel]}</span><select aria-label={`Alerts for ${channel === 'emote' ? 'emotes near me' : channelNames[channel]}`} value={preferences.channels[channel]} onChange={e => { const mode = e.target.value as ChannelMode; setPreferences(old => ({ ...old, channels: { ...old.channels, [channel]: mode } })); }}><option value="mute">Muted</option><option value="mentions">Mentions only</option><option value="all">Everything</option></select></label>)}</section><p className="modal-note">Auto-open and mention nicknames are set in <strong>/elfie config</strong>.</p><p className="modal-note">Messages live in memory for this session only. Emotes without a chat line never appear.</p><button className="soft-button" onClick={() => { chime(); setNotice(audio.current?.state === 'running' ? 'Test sound played.' : 'Press Turn on alerts to enable sound.'); }}>Test sound</button></dialog>
+    <dialog ref={settingsDialog} onCancel={() => setSettings(false)} onClick={e => { if (e.target === settingsDialog.current) setSettings(false); }}><div className="modal-heading"><span className="circle-icon pink"><Icon name="bell" /></span><h2>Alerts your way</h2><button className="icon-button" aria-label="Close settings" onClick={() => setSettings(false)}><Icon name="close" /></button></div><button className="primary-button enable-alerts" onClick={enableAlerts}>Turn on sound and permissions <Icon name="bell" size={18} /></button><p className="modal-note">Keep this tab open. If the browser suspends it, alerts can arrive late.</p><div className="notification-volume"><label htmlFor="notification-volume">Notification volume <output htmlFor="notification-volume">{preferences.volume}%</output></label><input id="notification-volume" type="range" min="0" max="100" step="1" value={preferences.volume} aria-valuetext={preferences.volume === 0 ? 'Muted' : `${preferences.volume}%`} onChange={e => setPreferences(old => ({ ...old, volume: Number(e.target.value) }))} /><div className="volume-scale"><span>Muted</span><span>Maximum</span></div></div>{([['sound', 'Gentle sound'], ['desktop', 'Desktop notifications'], ['tell', 'When someone writes privately'], ['emote', 'Emotes aimed at me'], ['target', 'When someone targets me'], ['targetDesktop', 'Desktop alerts for glances'], ['mention', 'Mentions of my name'], ['whileVisible', 'Alert me even while I am watching the panel']] as [TogglePreference, string][]).map(([id, label]) => <label className="toggle-row" key={id}><span>{label}</span><input type="checkbox" checked={preferences[id]} onChange={e => setPreferences(old => ({ ...old, [id]: e.target.checked }))} /></label>)}<section className="channel-notices"><h3>Alerts by channel</h3><p className="modal-note">Muted: still shown in the history, but it adds no unread count and triggers no sound or notification. Emotes aimed at you are set above.</p>{Object.keys(channelDefaults).map(channel => <label className="channel-notice-row" key={channel}><span>{channel === 'emote' ? 'Emotes near me' : channelNames[channel]}</span><select aria-label={`Alerts for ${channel === 'emote' ? 'emotes near me' : channelNames[channel]}`} value={preferences.channels[channel]} onChange={e => { const mode = e.target.value as ChannelMode; setPreferences(old => ({ ...old, channels: { ...old.channels, [channel]: mode } })); }}><option value="mute">Muted</option><option value="mentions">Mentions only</option><option value="all">Everything</option></select></label>)}</section><p className="modal-note">Auto-open and mention nicknames are set in <strong>/elfie config</strong>.</p><p className="modal-note">Messages live in memory for this session only. Emotes without a chat line never appear.</p><button className="soft-button" onClick={() => { chime(); setNotice(audio.current?.state === 'running' ? 'Test sound played.' : 'Press Turn on alerts to enable sound.'); }}>Test sound</button></dialog>
   </div>;
 }

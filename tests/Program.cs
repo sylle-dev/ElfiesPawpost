@@ -135,4 +135,14 @@ await client.GetStringAsync($"/api/events?session={streamed.Session}&after={stre
 state.Clear(); state.Add("chat", "say", "Nora", "Moogle", "new character");
 var reset = await client.GetFromJsonAsync<Snapshot>($"/api/events?session={streamed.Session}&after=9000");
 Check(reset!.Events.Length == 1, "New session ignores stale high cursor");
+var focusState = new PawState();
+Check(focusState.Read().Player.GameFocused, "Unknown initial focus is silent");
+focusState.SetGameFocused(true);
+focusState.Add("chat", "tell", "Luna Moonpetal", "Moogle", "hello", suppressAlert: true);
+focusState.SetGameFocused(false);
+var focusSnapshot = JsonSerializer.Deserialize<Snapshot>(JsonSerializer.Serialize(focusState.Read(), LocalServer.Json), LocalServer.Json)!;
+Check(!focusSnapshot.Player.GameFocused, "Current game focus reaches the browser");
+Check(focusSnapshot.Events[0].SuppressAlert, "Focused arrivals stay silent after switching away and serialization");
+focusState.Add("target", "target", "Nora Rose", "Moogle", "Targeted you.", suppressAlert: false);
+Check(!focusState.Read().Events[1].SuppressAlert, "Background arrivals remain eligible");
 Console.WriteLine($"{passed} tests passed.");

@@ -5,10 +5,10 @@ namespace ElfiesPawpost.Core;
 
 public sealed record PawEvent(long Id, DateTimeOffset At, string Kind, string Channel,
     string Sender, string World, string Text, bool Outgoing = false, bool Attention = false,
-    string? Conversation = null);
+    string? Conversation = null, bool SuppressAlert = false);
 public sealed record Watcher(string Name, string World, float Distance);
 public sealed record RecentWatcher(string Name, string World, DateTimeOffset LastSeen);
-public sealed record PlayerStatus(bool Online, string Name, string World, string Zone, bool TargetTracking);
+public sealed record PlayerStatus(bool Online, string Name, string World, string Zone, bool TargetTracking, bool GameFocused = true);
 public sealed record Snapshot(string Session, long Cursor, PawEvent[] Events, Watcher[] Watchers, PlayerStatus Player, RecentWatcher[] RecentWatchers);
 public sealed record SendRequest(string Channel, string? Recipient, string Text);
 public sealed record SendResult(bool Ok, string Message);
@@ -82,12 +82,12 @@ public sealed class PawState
     public const int Capacity = 1500;
 
     public void Add(string kind, string channel, string sender, string world, string text,
-        bool outgoing = false, bool attention = false, string? conversation = null)
+        bool outgoing = false, bool attention = false, string? conversation = null, bool suppressAlert = false)
     {
         lock (gate)
         {
             events.Enqueue(new(++cursor, DateTimeOffset.UtcNow, kind, channel, sender, world, text,
-                outgoing, attention, conversation));
+                outgoing, attention, conversation, suppressAlert));
             while (events.Count > Capacity) events.Dequeue();
         }
     }
@@ -105,6 +105,10 @@ public sealed class PawState
             foreach (var key in recentWatchers.OrderByDescending(p => p.Value.LastSeen)
                 .Skip(RecentWatcherCapacity).Select(p => p.Key).ToArray()) recentWatchers.Remove(key);
         }
+    }
+    public void SetGameFocused(bool focused)
+    {
+        lock (gate) player = player with { GameFocused = focused };
     }
     public Snapshot Read(long after = 0)
     {

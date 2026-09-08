@@ -119,3 +119,22 @@ test('notification volume defaults to half and validates stored values', () => {
   assert.equal(normalizePreferences({volume:200}).volume, 100);
   for (const volume of ['75', null, NaN, Infinity]) assert.equal(normalizePreferences({volume}).volume, 50);
 });
+
+test('all automatic alerts require the game to be unfocused at arrival and delivery', async () => {
+  const { canDeliverNotice } = await import('../frontend/notification-policy.mjs');
+  const prefs = normalizePreferences({ sound: true, desktop: true, whileVisible: true });
+  for (const channel of Object.keys(prefs.channels)) prefs.channels[channel] = 'all';
+  const samples = [event('tell'), event('target', { kind: 'target' }), event('emote', { kind: 'emote' }), event('fc', { kind: 'mention', attention: true }), ...Object.keys(prefs.channels).map(channel => event(channel))];
+  for (const sample of samples) {
+    const away = { ...sample, suppressAlert: false };
+    assert.equal(canDeliverNotice(away, prefs, true, false), false);
+    assert.equal(canDeliverNotice(away, prefs, true, true), false);
+    assert.equal(canDeliverNotice({ ...sample, suppressAlert: true }, prefs, false, false), false);
+    assert.equal(canDeliverNotice(away, prefs, false, false), true);
+    assert.equal(canDeliverNotice(away, prefs, undefined, false), false);
+    assert.equal(canDeliverNotice(sample, prefs, false, false), false);
+    prefs.whileVisible = false;
+    assert.equal(canDeliverNotice(away, prefs, false, true), false);
+    prefs.whileVisible = true;
+  }
+});

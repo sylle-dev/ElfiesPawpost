@@ -7,3 +7,5 @@ export function wantsNotice(event: { outgoing: boolean; channel: string; kind: s
 export function activityEvents<T extends { id: number; outgoing: boolean; channel: string; kind: string; attention: boolean }>(events: T[], filter: string, preferences: Preferences): T[];
 
 export function wantsDesktopNotice(event: { outgoing: boolean; channel: string; kind: string; attention: boolean }, preferences: Preferences): boolean;
+
+export function canDeliverNotice(event: { outgoing: boolean; channel: string; kind: string; attention: boolean; suppressAlert?: boolean }, preferences: Preferences, gameFocused: boolean | undefined, panelFocused: boolean): boolean;

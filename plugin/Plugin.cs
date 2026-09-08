@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Chat;
 using Dalamud.Game.ClientState.Objects.SubKinds;
@@ -84,9 +85,19 @@ public sealed class Plugin : IDalamudPlugin
         return result.Task.WaitAsync(token);
     }
 
+    [DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
+
+    private static bool GameFocused()
+    {
+        var window = PluginInterface.UiBuilder.WindowHandlePtr;
+        return window == 0 || GetForegroundWindow() == window;
+    }
+
     private void OnUpdate(IFramework framework)
     {
         if (disposed) return;
+        state.SetGameFocused(GameFocused());
         var now = DateTimeOffset.UtcNow;
         var identity = CurrentIdentity();
         if (now >= nextScan || (identity != "" && identity != characterSession.Identity))
@@ -181,9 +192,9 @@ public sealed class Plugin : IDalamudPlugin
             .Select(p => new Watcher(p.Name.TextValue, p.HomeWorld.Value.Name.ToString(),
                 MathF.Round(Vector3.Distance(p.Position, player.Position), 1)))
             .OrderBy(p => p.Distance).ToArray() : [];
-        state.Update(new(true, player.Name.TextValue, world, zone, tracking), watchers);
+        state.Update(new(true, player.Name.TextValue, world, zone, tracking, GameFocused()), watchers);
         foreach (var watcher in tracker.Update(watchers, now, TimeSpan.FromSeconds(config.TargetCooldownSeconds)))
-            state.Add("target", "target", watcher.Name, watcher.World, "Targeted you.", attention: true);
+            state.Add("target", "target", watcher.Name, watcher.World, "Targeted you.", attention: true, suppressAlert: GameFocused());
     }
 
     private void OnChat(IHandleableChatMessage message)
@@ -219,7 +230,7 @@ public sealed class Plugin : IDalamudPlugin
             var attention = !outgoingMessage && (type is XivChatType.TellIncoming or XivChatType.GmTell || directed || mention || error);
             var kind = error ? "error" : isEmote ? (directed ? "emote" : "ambient-emote") : mention ? "mention" : "chat";
             var conversation = channel == "tell" && name != "" && world != "" ? name + "@" + world : null;
-            state.Add(kind, channel, name == "" ? "Eorzea" : name, world, text, outgoingMessage, attention, conversation);
+            state.Add(kind, channel, name == "" ? "Eorzea" : name, world, text, outgoingMessage, attention, conversation, suppressAlert: GameFocused());
         }
         catch (Exception ex) { Log.Warning(ex, "Pawpost could not read a chat message"); }
     }

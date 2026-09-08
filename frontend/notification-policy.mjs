@@ -34,3 +34,9 @@ export function wantsDesktopNotice(event, preferences) {
   return preferences.desktop && wantsNotice(event, preferences)
     && (event.kind !== 'target' || preferences.targetDesktop);
 }
+
+// Unknown game focus is silent; panel preferences never override game focus.
+export function canDeliverNotice(event, preferences, gameFocused, panelFocused) {
+  return gameFocused === false && event.suppressAlert === false
+    && (!panelFocused || preferences.whileVisible) && wantsNotice(event, preferences);
+}
